@@ -68,6 +68,7 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
     { label: 'Manajemen Pengajar', href: '/superadmin/pengajar', icon: Users },
     { label: 'Pengajuan Modul', href: '/superadmin/pengajuan', icon: ClipboardCheck },
     { label: 'Semua Modul Soal', href: '/superadmin/modul', icon: BookOpen },
+    { label: 'Hasil Nilai Siswa', href: '/superadmin/hasil', icon: BarChart3 },
   ];
 
   const adminMenus = [

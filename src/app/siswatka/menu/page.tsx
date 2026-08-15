@@ -3,11 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BookOpen, Calculator, Globe, LogOut, Sparkles } from 'lucide-react';
+import { BookOpen, Calculator, Globe, LogOut, Sparkles, Trophy, History, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function SiswaMenuPage() {
   const router = useRouter();
   const [siswa, setSiswa] = useState<any>(null);
+  const [recentExams, setRecentExams] = useState<any[]>([]);
+  const [loadingExams, setLoadingExams] = useState(true);
 
   useEffect(() => {
     // Cek apakah siswa sudah login
@@ -16,8 +19,29 @@ export default function SiswaMenuPage() {
       router.push('/siswatka');
       return;
     }
-    setSiswa(JSON.parse(sessionData));
+    const studentInfo = JSON.parse(sessionData);
+    setSiswa(studentInfo);
+    fetchRecentHistory(studentInfo.id, studentInfo.nisn);
   }, [router]);
+
+  const fetchRecentHistory = async (studentId: string, nisn: string) => {
+    try {
+      setLoadingExams(true);
+      const { data, error } = await supabase
+        .from('exam_results')
+        .select('*')
+        .or(`student_id.eq.${studentId},nisn.eq.${nisn}`)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+      setRecentExams(data || []);
+    } catch (err) {
+      console.error('Error fetching recent exams:', err);
+    } finally {
+      setLoadingExams(false);
+    }
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem('tka_siswa');
@@ -56,13 +80,23 @@ export default function SiswaMenuPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-sm transition cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Keluar</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/siswatka/riwayat"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-xs transition"
+            >
+              <Trophy className="w-4 h-4 text-indigo-600" />
+              <span>Riwayat Nilai Saya</span>
+            </Link>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Keluar</span>
+            </button>
+          </div>
         </div>
 
         {/* Menu Section */}
@@ -94,7 +128,7 @@ export default function SiswaMenuPage() {
                       <h3 className="text-2xl font-black tracking-tight mb-4 drop-shadow-sm flex-1">{mapel.name}</h3>
                       <div className="inline-flex items-center gap-2 text-sm font-bold bg-white/20 backdrop-blur-md px-3 py-2 rounded-xl mt-auto w-fit">
                         <span>Masuk Modul</span>
-                        <ArrowRightIcon className="w-4 h-4" />
+                        <ArrowRight className="w-4 h-4" />
                       </div>
                     </div>
                   </div>
@@ -104,17 +138,56 @@ export default function SiswaMenuPage() {
           </div>
         </div>
 
+        {/* Recent Exams Section */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600" />
+              Ujian yang Baru Saja Kamu Selesaikan
+            </h3>
+            <Link href="/siswatka/riwayat" className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
+              Lihat Semua Nilai &rarr;
+            </Link>
+          </div>
+
+          {loadingExams ? (
+            <div className="py-8 text-center text-xs text-slate-400">Memuat riwayat...</div>
+          ) : recentExams.length === 0 ? (
+            <div className="py-8 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
+              <p className="text-xs font-semibold text-slate-500">Belum ada riwayat ujian.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Pilih salah satu mata pelajaran di atas untuk mulai latihan soal!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {recentExams.map((exam) => {
+                const score = Number(exam.skor) || 0;
+                return (
+                  <div
+                    key={exam.id}
+                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                        {exam.mata_pelajaran}
+                      </span>
+                      <p className="text-xs font-black text-slate-800 mt-1 truncate max-w-[160px]">{exam.nama_modul}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(exam.waktu_selesai || exam.created_at).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-indigo-700">{score}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">Skor Nilai</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
-  );
-}
-
-// Icon helper
-function ArrowRightIcon(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12h14" />
-      <path d="m12 5 7 7-7 7" />
-    </svg>
   );
 }

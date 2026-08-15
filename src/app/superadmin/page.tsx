@@ -13,7 +13,10 @@ import {
   ArrowUpRight, 
   ShieldCheck, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  BarChart3,
+  GraduationCap,
+  Trophy
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -23,8 +26,11 @@ export default function SuperAdminDashboardPage() {
     pendingPengajar: 0,
     totalModul: 0,
     totalSoal: 0,
+    totalUjianSelesai: 0,
+    rataRataNilai: 0,
   });
   const [logs, setLogs] = useState<any[]>([]);
+  const [recentExams, setRecentExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -42,7 +48,17 @@ export default function SuperAdminDashboardPage() {
       // 3. Fetch questions stats
       const { count: totalSoal } = await supabase.from('questions').select('*', { count: 'exact', head: true });
 
-      // 4. Fetch activity logs
+      // 4. Fetch Exam Results
+      const { data: examData } = await supabase
+        .from('exam_results')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      const totalUjianSelesai = examData?.length || 0;
+      const scores = examData?.map(e => Number(e.skor) || 0) || [];
+      const rataRataNilai = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '0';
+
+      // 5. Fetch activity logs
       const { data: logData } = await supabase
         .from('activity_logs')
         .select(`
@@ -57,15 +73,18 @@ export default function SuperAdminDashboardPage() {
           )
         `)
         .order('created_at', { ascending: false })
-        .limit(15);
+        .limit(10);
 
       setStats({
         totalPengajar,
         pendingPengajar,
         totalModul: totalModul || 0,
         totalSoal: totalSoal || 0,
+        totalUjianSelesai,
+        rataRataNilai: Number(rataRataNilai),
       });
 
+      setRecentExams(examData?.slice(0, 6) || []);
       setLogs(logData || []);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -144,135 +163,147 @@ export default function SuperAdminDashboardPage() {
 
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Soal</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Ujian Siswa</span>
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
-              <HelpCircle className="w-5 h-5" />
+              <GraduationCap className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-800">{stats.totalSoal}</span>
-            <span className="text-xs font-semibold text-slate-400">Pertanyaan Terdaftar</span>
+            <span className="text-3xl font-black text-slate-800">{stats.totalUjianSelesai}</span>
+            <span className="text-xs font-semibold text-slate-400">Selesai Dikerjakan</span>
           </div>
-          <span className="inline-block mt-2 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
-            Pilihan Ganda A-B-C-D
-          </span>
+          <Link href="/superadmin/hasil" className="mt-2 text-xs font-semibold text-emerald-600 flex items-center gap-1 hover:underline">
+            Lihat rekap nilai &rarr;
+          </Link>
         </div>
 
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Log Aktivitas</span>
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
-              <History className="w-5 h-5" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Rata-Rata Nilai</span>
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+              <Trophy className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-800">{logs.length}</span>
-            <span className="text-xs font-semibold text-slate-400">Riwayat Terkini</span>
+            <span className="text-3xl font-black text-purple-700">{stats.rataRataNilai}</span>
+            <span className="text-xs font-semibold text-slate-400">/ 100</span>
           </div>
           <span className="inline-block mt-2 text-xs font-semibold text-slate-500">
-            Terdeteksi secara realtime
+            Seluruh simulasi TKA
           </span>
         </div>
       </div>
 
-      {/* Activity Logs Table */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
+      {/* Grid Recent Exams & Live Logs */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Student Exams */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 flex flex-col justify-between">
           <div>
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <History className="w-5 h-5 text-rose-600" />
-              Live Activity Log Guru & Pengajar
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Memantau pengajar yang sedang menginput soal, membuat modul, mengedit, atau menghapus materi
-            </p>
-          </div>
-          <button
-            onClick={fetchDashboardData}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Segarkan Log</span>
-          </button>
-        </div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-indigo-600" />
+                  Hasil Nilai Siswa Terbaru
+                </h3>
+                <p className="text-xs text-slate-500">Siswa yang baru saja menyelesaikan simulasi ujian</p>
+              </div>
+              <Link href="/superadmin/hasil" className="text-xs font-bold text-indigo-600 hover:underline">
+                Lihat Semua &rarr;
+              </Link>
+            </div>
 
-        {loading ? (
-          <div className="py-12 text-center text-slate-400 text-sm">
-            <div className="w-6 h-6 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            Memuat aktivitas pengajar...
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-sm bg-slate-50 rounded-2xl">
-            Belum ada log aktivitas dari pengajar.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-400 uppercase text-[11px] font-bold tracking-wider">
-                  <th className="pb-3 px-4">Waktu</th>
-                  <th className="pb-3 px-4">Pengajar</th>
-                  <th className="pb-3 px-4">Aktivitas / Aksi</th>
-                  <th className="pb-3 px-4">Detail Kegiatan</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {logs.map((log) => {
-                  const pengajar = (log.pengajar_profiles as any);
-                  const isModul = log.action.toLowerCase().includes('modul');
-                  const isSoal = log.action.toLowerCase().includes('soal');
-                  const isDaftar = log.action.toLowerCase().includes('daftar');
+            {loading ? (
+              <div className="py-12 text-center text-slate-400 text-xs">Memuat data...</div>
+            ) : recentExams.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs">Belum ada siswa yang mengerjakan ujian.</div>
+            ) : (
+              <div className="space-y-2.5">
+                {recentExams.map((exam) => {
+                  const score = Number(exam.skor);
+                  const isHigh = score >= 80;
+                  const isMed = score >= 65 && score < 80;
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-4 px-4 text-xs text-slate-400 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          {new Date(log.created_at).toLocaleString('id-ID', {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })}
+                    <div key={exam.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center justify-center">
+                          {exam.nama_lengkap?.charAt(0).toUpperCase() || 'S'}
                         </div>
-                      </td>
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs">
-                            {pengajar?.username ? pengajar.username.charAt(0).toUpperCase() : 'P'}
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-800 text-xs">
-                              {pengajar?.username ? `@${pengajar.username}` : 'Pengajar / System'}
-                            </span>
-                            {pengajar?.email && (
-                              <p className="text-[10px] text-slate-400">{pengajar.email}</p>
-                            )}
-                          </div>
+                        <div>
+                          <p className="text-xs font-black text-slate-800 uppercase">{exam.nama_lengkap}</p>
+                          <p className="text-[10px] text-slate-400 font-medium">
+                            {exam.nama_modul} &bull; {exam.mata_pelajaran}
+                          </p>
                         </div>
-                      </td>
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          isModul 
-                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                            : isSoal
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : isDaftar
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {log.action}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-xs text-slate-600 max-w-md truncate">
-                        {log.details || '-'}
-                      </td>
-                    </tr>
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-xl text-xs font-black ${
+                          isHigh
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : isMed
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {score}
+                      </span>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
-        )}
+
+          <Link
+            href="/superadmin/hasil"
+            className="mt-4 w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl text-center transition block"
+          >
+            Buka Rekapitulasi Lengkap (.xlsx)
+          </Link>
+        </div>
+
+        {/* Live Logs */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <History className="w-5 h-5 text-rose-600" />
+                Live Log Aktivitas Guru
+              </h3>
+              <p className="text-xs text-slate-500">Aktivitas input & edit soal pengajar</p>
+            </div>
+            <button
+              onClick={fetchDashboardData}
+              disabled={refreshing}
+              className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="py-12 text-center text-slate-400 text-xs">Memuat log...</div>
+          ) : logs.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-xs">Belum ada log aktivitas.</div>
+          ) : (
+            <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+              {logs.map((log) => (
+                <div key={log.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+                  <div className="flex items-center justify-between text-[11px] mb-1">
+                    <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md">
+                      {log.action}
+                    </span>
+                    <span className="text-slate-400">
+                      {new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-slate-700 font-medium leading-relaxed mt-0.5">{log.details}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
