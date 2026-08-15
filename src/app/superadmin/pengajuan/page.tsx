@@ -19,6 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import Link from 'next/link';
+import { parseQuestionOptions } from '@/lib/optionsHelper';
 
 export default function SuperAdminPengajuanPage() {
   const [modules, setModules] = useState<any[]>([]);
@@ -498,12 +499,7 @@ export default function SuperAdminPengajuanPage() {
             ) : (
               <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                 {detailQuestions.map((q, idx) => {
-                  const qOptions: { key: string; text: string }[] = [];
-                  if (q.opsi_a) qOptions.push({ key: 'A', text: q.opsi_a });
-                  if (q.opsi_b) qOptions.push({ key: 'B', text: q.opsi_b });
-                  if (q.opsi_c) qOptions.push({ key: 'C', text: q.opsi_c });
-                  if (q.opsi_d) qOptions.push({ key: 'D', text: q.opsi_d });
-                  if (q.opsi_e) qOptions.push({ key: 'E', text: q.opsi_e });
+                  const qOptions = parseQuestionOptions(q);
 
                   return (
                     <div key={q.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">

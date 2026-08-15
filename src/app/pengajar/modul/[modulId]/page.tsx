@@ -19,14 +19,14 @@ import {
   UploadCloud,
   FileImage,
   X,
-  Plus
+  Plus,
+  Lock,
+  Send,
+  RefreshCw,
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
-
-interface OptionItem {
-  key: string; // 'A', 'B', 'C', etc.
-  text: string;
-}
+import { parseQuestionOptions, formatOptionsForDatabase, QuestionOption } from '@/lib/optionsHelper';
 
 export default function PengajarDetailModulPage({ params }: { params: Promise<{ modulId: string }> }) {
   const resolvedParams = use(params);
@@ -48,8 +48,8 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
     durasi_detik: 60,
   });
 
-  // Dynamic Options State (Custom options A, B, C, D, E, etc.)
-  const [options, setOptions] = useState<OptionItem[]>([
+  // Dynamic Options State (A, B, C, D, E, F, G, H, ...)
+  const [options, setOptions] = useState<QuestionOption[]>([
     { key: 'A', text: '' },
     { key: 'B', text: '' },
     { key: 'C', text: '' },
@@ -140,44 +140,37 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
       durasi_detik: q.durasi_detik || 60,
     });
 
-    // Parse options from question object
-    const loadedOptions: OptionItem[] = [];
-    if (q.opsi_a) loadedOptions.push({ key: 'A', text: q.opsi_a });
-    if (q.opsi_b) loadedOptions.push({ key: 'B', text: q.opsi_b });
-    if (q.opsi_c) loadedOptions.push({ key: 'C', text: q.opsi_c });
-    if (q.opsi_d) loadedOptions.push({ key: 'D', text: q.opsi_d });
-    if (q.opsi_e) loadedOptions.push({ key: 'E', text: q.opsi_e });
-
+    // Parse dynamic options safely from question data
+    const loadedOptions = parseQuestionOptions(q);
     setOptions(loadedOptions.length >= 2 ? loadedOptions : [
-      { key: 'A', text: q.opsi_a || '' },
-      { key: 'B', text: q.opsi_b || '' },
-      { key: 'C', text: q.opsi_c || '' },
-      { key: 'D', text: q.opsi_d || '' },
+      { key: 'A', text: '' },
+      { key: 'B', text: '' },
+      { key: 'C', text: '' },
+      { key: 'D', text: '' },
     ]);
 
-    setImageFileName(q.gambar_url ? 'Gambar Terlampir' : '');
+    setImageFileName(q.gambar_url ? 'Foto Soal Terpasang' : '');
     setImageFileSize('');
     setQuestionModalOpen(true);
   };
 
-  // Dynamic Options Management: Add Option
+  // Add Option (A, B, C, D, E, F, G, H, ...)
   const handleAddOption = () => {
-    if (options.length >= 8) {
-      setToastMessage({ type: 'error', text: 'Maksimal 8 pilihan jawaban per soal.' });
+    if (options.length >= 10) {
+      setToastMessage({ type: 'error', text: 'Maksimal 10 pilihan jawaban per soal.' });
       return;
     }
-    const nextKey = String.fromCharCode(65 + options.length); // Next alphabet letter
+    const nextKey = String.fromCharCode(65 + options.length);
     setOptions([...options, { key: nextKey, text: '' }]);
   };
 
-  // Dynamic Options Management: Remove Option
+  // Remove Option
   const handleRemoveOption = (indexToRemove: number) => {
     if (options.length <= 2) {
-      setToastMessage({ type: 'error', text: 'Minimal harus ada 2 pilihan jawaban (misal A dan B).' });
+      setToastMessage({ type: 'error', text: 'Minimal harus ada 2 pilihan jawaban.' });
       return;
     }
     const filtered = options.filter((_, idx) => idx !== indexToRemove);
-    // Re-index letter keys (A, B, C, ...)
     const reindexed = filtered.map((opt, idx) => ({
       key: String.fromCharCode(65 + idx),
       text: opt.text,
@@ -185,7 +178,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
 
     setOptions(reindexed);
 
-    // If selected answer was removed or out of bounds, reset to 'A'
+    // Reset jawaban benar jika opsi yang terpilih dihapus
     if (!reindexed.some((opt) => opt.key === questionForm.jawaban_benar)) {
       setQuestionForm((prev) => ({ ...prev, jawaban_benar: 'A' }));
     }
@@ -197,7 +190,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
     setOptions(updated);
   };
 
-  // Process File Upload
+  // File Upload Handling
   const processImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       setToastMessage({ type: 'error', text: 'Format file tidak didukung. Harap pilih gambar (PNG, JPG, JPEG, WEBP).' });
@@ -258,10 +251,31 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
     }
   };
 
+  const isOwner = moduleData?.pengajar_id === currentUser?.id || currentUser?.role === 'superadmin';
+  const isApproved = moduleData?.status_approval === 'approved';
+  const isPending = moduleData?.status_approval === 'pending';
+
+  // Logika Re-Approval jika modul sudah pernah di-ACC
+  const revertToPendingIfApproved = async () => {
+    if (moduleData?.status_approval === 'approved') {
+      await supabase
+        .from('modules')
+        .update({ status_approval: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', modulId);
+
+      await supabase.from('activity_logs').insert([{
+        user_id: currentUser?.id || null,
+        action: 'Modul Perlu Re-ACC',
+        details: `Pengajar @${currentUser?.username || 'user'} mengedit soal pada modul "${moduleData?.nama_modul}" yang sudah disetujui. Modul dikembalikan ke status Pending untuk persetujuan ulang Super Admin.`,
+      }]);
+
+      setToastMessage({ type: 'error', text: '⚠️ Modul ini sebelumnya sudah di-ACC. Karena Anda mengubah soal, modul otomatis kembali ke status "Menunggu Persetujuan" dan harus di-ACC ulang oleh Super Admin.' });
+    }
+  };
+
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validasi
     if (!questionForm.pertanyaan.trim()) {
       setToastMessage({ type: 'error', text: 'Teks pertanyaan wajib diisi.' });
       return;
@@ -275,16 +289,14 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
 
     setSavingQuestion(true);
 
-    // Map options to standard fields
+    // Format opsi dinamis dengan helper universal
+    const dbOptions = formatOptionsForDatabase(options);
+
     const payload = {
       tipe_input: questionForm.tipe_input,
       pertanyaan: questionForm.pertanyaan,
       gambar_url: questionForm.tipe_input === 'image' ? questionForm.gambar_url : null,
-      opsi_a: options[0]?.text || '',
-      opsi_b: options[1]?.text || '',
-      opsi_c: options[2]?.text || '',
-      opsi_d: options[3]?.text || '',
-      opsi_e: options[4]?.text || null,
+      ...dbOptions,
       jawaban_benar: questionForm.jawaban_benar,
       durasi_detik: questionForm.durasi_detik,
       username: currentUser?.username,
@@ -293,7 +305,6 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
 
     try {
       if (editingQuestion) {
-        // Update
         const res = await fetch('/api/questions', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -308,7 +319,6 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
 
         setToastMessage({ type: 'success', text: 'Soal berhasil diperbarui!' });
       } else {
-        // Insert
         const res = await fetch('/api/questions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -324,13 +334,14 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
         setToastMessage({ type: 'success', text: 'Soal baru berhasil ditambahkan!' });
       }
 
+      await revertToPendingIfApproved();
       setQuestionModalOpen(false);
       fetchModuleAndQuestions();
     } catch (err: any) {
       setToastMessage({ type: 'error', text: err.message || 'Gagal menyimpan soal.' });
     } finally {
       setSavingQuestion(false);
-      setTimeout(() => setToastMessage(null), 4000);
+      setTimeout(() => setToastMessage(null), 6000);
     }
   };
 
@@ -345,16 +356,17 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
       const result = await res.json();
       if (!res.ok || !result.success) throw new Error(result.message);
 
-      setToastMessage({ type: 'success', text: 'Soal berhasil dihapus.' });
+      await revertToPendingIfApproved();
+      if (moduleData?.status_approval !== 'approved') {
+        setToastMessage({ type: 'success', text: 'Soal berhasil dihapus.' });
+      }
       fetchModuleAndQuestions();
     } catch (err: any) {
       setToastMessage({ type: 'error', text: 'Gagal menghapus soal.' });
     } finally {
-      setTimeout(() => setToastMessage(null), 4000);
+      setTimeout(() => setToastMessage(null), 6000);
     }
   };
-
-  const isOwner = moduleData?.pengajar_id === currentUser?.id || currentUser?.role === 'superadmin';
 
   return (
     <div className="space-y-6">
@@ -383,6 +395,31 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
         </Link>
       </div>
 
+      {/* Status Banners */}
+      {moduleData && isApproved && (
+        <div className="p-4 rounded-2xl border border-emerald-300 bg-emerald-50 flex items-start gap-3">
+          <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-emerald-800">✅ Modul Ini Sudah Disetujui Super Admin & Siap untuk Try Out Siswa</p>
+            <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
+              Jika Anda menambah, mengubah, atau menghapus soal, modul akan otomatis kembali ke status <b>Menunggu Persetujuan</b> dan harus di-ACC ulang oleh Super Admin sebelum bisa digunakan siswa.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {moduleData && isPending && (
+        <div className="p-4 rounded-2xl border border-amber-300 bg-amber-50 flex items-start gap-3">
+          <Send className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-black text-amber-800">⏳ Modul Menunggu Persetujuan Super Admin</p>
+            <p className="text-[11px] text-amber-700 mt-0.5 font-medium">
+              Modul ini sudah diajukan dan sedang menunggu ACC dari Super Admin. Anda masih bisa menambah/mengubah soal, tapi persetujuan akan diperlukan ulang.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Module Info Banner */}
       {moduleData && (
         <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -394,6 +431,18 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
               <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full">
                 {moduleData.kelas}
               </span>
+              {isApproved && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <ShieldCheck className="w-3 h-3" />
+                  Disetujui (Siap Try Out)
+                </span>
+              )}
+              {isPending && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                  <Clock className="w-3 h-3" />
+                  Menunggu Persetujuan
+                </span>
+              )}
             </div>
             <h2 className="text-2xl font-black text-slate-900">{moduleData.nama_modul}</h2>
             <p className="text-xs text-slate-500 mt-1 font-medium">
@@ -402,13 +451,21 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
           </div>
 
           {isOwner && (
-            <button
-              onClick={handleOpenAddQuestion}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition cursor-pointer"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>+ Tambah Soal Baru</span>
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleOpenAddQuestion}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>+ Tambah Soal Baru</span>
+              </button>
+              {isApproved && (
+                <p className="text-[10px] text-amber-700 font-bold text-center flex items-center justify-center gap-1">
+                  <RefreshCw className="w-3 h-3" />
+                  Edit soal → perlu ACC ulang
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -430,19 +487,13 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
             <HelpCircle className="w-12 h-12 text-slate-300 mx-auto" />
             <h4 className="text-base font-bold text-slate-700">Belum Ada Soal di Modul Ini</h4>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Klik tombol "+ Tambah Soal Baru" di atas untuk memasukkan pertanyaan teks/gambar, atur pilihan ganda custom, dan durasi detik.
+              Klik tombol "+ Tambah Soal Baru" di atas untuk memasukkan pertanyaan teks/gambar, atur pilihan ganda custom (A-H), dan durasi detik.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             {questions.map((q, idx) => {
-              // Collect all non-empty options for display
-              const qOptions: { key: string; text: string }[] = [];
-              if (q.opsi_a) qOptions.push({ key: 'A', text: q.opsi_a });
-              if (q.opsi_b) qOptions.push({ key: 'B', text: q.opsi_b });
-              if (q.opsi_c) qOptions.push({ key: 'C', text: q.opsi_c });
-              if (q.opsi_d) qOptions.push({ key: 'D', text: q.opsi_d });
-              if (q.opsi_e) qOptions.push({ key: 'E', text: q.opsi_e });
+              const qOptions = parseQuestionOptions(q);
 
               return (
                 <div
@@ -455,7 +506,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
                         {idx + 1}
                       </span>
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                             <Timer className="w-3 h-3 text-indigo-600" />
                             <span>Durasi: {q.durasi_detik || 60} Detik</span>
@@ -555,7 +606,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
               {editingQuestion ? 'Edit Soal' : 'Tambah Soal Baru'}
             </h3>
             <p className="text-xs text-slate-500 mb-6 font-medium">
-              Masukkan pertanyaan, upload/geser foto (maks. 50 MB), atur opsi pilihan ganda custom, dan durasi pengerjaan
+              Masukkan pertanyaan, upload/geser foto (maks. 50 MB), atur opsi pilihan ganda custom (A, B, C, D, E, F, G, H, dst.), dan durasi pengerjaan
             </p>
 
             <form onSubmit={handleSaveQuestion} className="space-y-4">
@@ -647,7 +698,6 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
                     Foto / Gambar Soal (PNG, JPG, JPEG, WEBP &bull; Maks. 50 MB)
                   </label>
 
-                  {/* Hidden file input */}
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -733,7 +783,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
                     className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200 transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Tambah Opsi Jawaban</span>
+                    <span>+ Tambah Opsi ({String.fromCharCode(65 + options.length)})</span>
                   </button>
                 </div>
 
@@ -763,7 +813,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
                         className="flex-1 px-4 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-slate-900 font-bold text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                       />
 
-                      {/* Delete Option Button (disabled if only 2 options left) */}
+                      {/* Delete Option Button */}
                       {options.length > 2 && (
                         <button
                           type="button"
@@ -779,7 +829,7 @@ export default function PengajarDetailModulPage({ params }: { params: Promise<{ 
                 </div>
 
                 <p className="text-[11px] text-slate-500 font-medium pt-1">
-                  💡 <i>Klik tombol bulat di samping huruf untuk memilih kunci jawaban yang benar. Anda dapat menambah opsi (misal A, B, C, D, E) atau menghapus opsi hingga tersisa 2 pilihan (misal Benar/Salah).</i>
+                  💡 <i>Klik tombol bulat di samping huruf untuk memilih kunci jawaban yang benar. Anda dapat menambah opsi (misal A, B, C, D, E, F, G, H, dst.) atau menghapus opsi hingga tersisa 2 pilihan (misal Benar/Salah).</i>
                 </p>
               </div>
 

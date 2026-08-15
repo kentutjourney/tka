@@ -12,19 +12,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const cleanIdentifier = identifier.trim().toLowerCase();
+    const cleanIdentifier = identifier.trim();
 
-    // Cari berdasarkan username ATAU email
-    const { data: userProfile, error } = await supabase
+    // Cari berdasarkan username (case-insensitive)
+    const { data: byUsername } = await supabase
       .from('pengajar_profiles')
       .select('*')
-      .or(`email.eq.${cleanIdentifier},username.eq.${cleanIdentifier}`)
+      .ilike('username', cleanIdentifier)
       .maybeSingle();
 
-    if (error || !userProfile) {
+    let userProfile = byUsername;
+
+    // Jika tidak ketemu berdasarkan username, cari berdasarkan email (case-insensitive)
+    if (!userProfile) {
+      const { data: byEmail } = await supabase
+        .from('pengajar_profiles')
+        .select('*')
+        .ilike('email', cleanIdentifier)
+        .maybeSingle();
+      userProfile = byEmail;
+    }
+
+    if (!userProfile) {
       return NextResponse.json(
-        { success: false, message: 'Akun pengajar tidak ditemukan. Periksa username/email Anda.' },
-        { status: 404 }
+        { success: false, message: `Akun "${cleanIdentifier}" tidak ditemukan. Periksa kembali username atau email Anda.` },
+        { status: 200 }
       );
     }
 
@@ -32,7 +44,7 @@ export async function POST(request: Request) {
     if (userProfile.password && userProfile.password !== password) {
       return NextResponse.json(
         { success: false, message: 'Password yang Anda masukkan salah.' },
-        { status: 401 }
+        { status: 200 }
       );
     }
 
@@ -41,9 +53,9 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { 
           success: false, 
-          message: 'Akun Anda masih dalam antrean persetujuan (PENDING) oleh Super Admin. Mohon tunggu verifikasi.' 
+          message: 'Akun Anda masih dalam antrean persetujuan (PENDING) oleh Super Admin. Buka menu Manajemen Pengajar di Super Admin untuk menyetujui akun ini.' 
         },
-        { status: 403 }
+        { status: 200 }
       );
     }
 
@@ -53,7 +65,7 @@ export async function POST(request: Request) {
           success: false, 
           message: 'Mohon maaf, pendaftaran akun pengajar Anda telah ditolak oleh Super Admin.' 
         },
-        { status: 403 }
+        { status: 200 }
       );
     }
 
