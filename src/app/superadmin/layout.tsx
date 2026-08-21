@@ -33,10 +33,10 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-        <div className="flex items-center gap-3">
-          <div className="w-6 h-6 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="font-semibold text-sm">Memuat Sesi Super Admin...</span>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-slate-400 text-sm font-medium">Memuat Sesi Super Admin...</span>
         </div>
       </div>
     );
@@ -49,13 +49,13 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         userName={currentUser?.username} 
         userEmail={currentUser?.email} 
       />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header 
           title="Super Admin Control Panel" 
           subtitle="Akses penuh konfigurasi, log guru pengajar, & persetujuan akun"
           roleBadge="SUPER ADMIN"
         />
-        <main className="p-8 flex-1 overflow-x-hidden">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
           {children}
         </main>
       </div>

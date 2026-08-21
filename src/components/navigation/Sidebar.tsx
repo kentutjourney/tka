@@ -8,12 +8,13 @@ import {
   Users, 
   BookOpen, 
   BarChart3, 
-  FileText, 
   LogOut, 
   ShieldCheck, 
   UserCheck, 
   GraduationCap,
-  ClipboardCheck
+  ClipboardCheck,
+  Zap,
+  ChevronRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,33 +36,38 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
     }
   };
 
-  const getRoleBadge = () => {
-    switch (role) {
-      case 'superadmin':
-        return {
-          title: 'Super Admin',
-          icon: <ShieldCheck className="w-5 h-5 text-red-500" />,
-          badgeClass: 'bg-red-50 text-red-600 border-red-200',
-          gradient: 'from-rose-600 to-red-600',
-        };
-      case 'admin':
-        return {
-          title: 'Admin',
-          icon: <UserCheck className="w-5 h-5 text-indigo-500" />,
-          badgeClass: 'bg-indigo-50 text-indigo-600 border-indigo-200',
-          gradient: 'from-indigo-600 to-blue-600',
-        };
-      case 'pengajar':
-        return {
-          title: 'Pengajar',
-          icon: <GraduationCap className="w-5 h-5 text-emerald-500" />,
-          badgeClass: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-          gradient: 'from-emerald-600 to-teal-600',
-        };
-    }
+  const roleConfig = {
+    superadmin: {
+      label: 'Super Admin',
+      icon: ShieldCheck,
+      accent: 'from-rose-500 to-pink-600',
+      accentSoft: 'bg-rose-500/10 text-rose-400',
+      activeBg: 'from-rose-500 to-pink-600',
+      badge: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      dot: 'bg-rose-400',
+    },
+    admin: {
+      label: 'Admin',
+      icon: UserCheck,
+      accent: 'from-indigo-500 to-blue-600',
+      accentSoft: 'bg-indigo-500/10 text-indigo-400',
+      activeBg: 'from-indigo-500 to-blue-600',
+      badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      dot: 'bg-indigo-400',
+    },
+    pengajar: {
+      label: 'Pengajar',
+      icon: GraduationCap,
+      accent: 'from-emerald-500 to-teal-600',
+      accentSoft: 'bg-emerald-500/10 text-emerald-400',
+      activeBg: 'from-emerald-500 to-teal-600',
+      badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      dot: 'bg-emerald-400',
+    },
   };
 
-  const roleInfo = getRoleBadge();
+  const cfg = roleConfig[role];
+  const RoleIcon = cfg.icon;
 
   const superAdminMenus = [
     { label: 'Dashboard & Log', href: '/superadmin', icon: LayoutDashboard },
@@ -85,27 +91,41 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
 
   const menus = role === 'superadmin' ? superAdminMenus : role === 'admin' ? adminMenus : pengajarMenus;
 
+  const getInitials = (name?: string) => {
+    if (!name) return role === 'superadmin' ? 'SA' : 'AD';
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
-    <aside className="w-72 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shadow-sm">
-      {/* Brand & Logo */}
-      <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${roleInfo.gradient} flex items-center justify-center text-white font-black text-xs shadow-md shadow-slate-200 text-center leading-none`}>
-          SDN 02
-        </div>
-        <div>
-          <h2 className="font-bold text-slate-800 text-sm leading-tight tracking-tight">SDN Kedung Jaya 02</h2>
-          <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 mt-1 rounded-full font-medium border ${roleInfo.badgeClass}`}>
-            {roleInfo.icon}
-            {roleInfo.title}
-          </span>
+    <aside className="w-64 bg-slate-900 flex flex-col h-screen sticky top-0 shadow-xl shadow-black/20">
+      {/* Top gradient line */}
+      <div className={`h-0.5 w-full bg-gradient-to-r ${cfg.accent}`} />
+
+      {/* Brand */}
+      <div className="px-5 pt-5 pb-4 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${cfg.accent} flex items-center justify-center shadow-lg`}>
+            <Zap className="w-4.5 h-4.5 text-white w-[18px] h-[18px]" />
+          </div>
+          <div>
+            <h2 className="font-black text-white text-sm leading-tight">SDN Kedung Jaya 02</h2>
+            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Portal Manajemen TKA</p>
+          </div>
         </div>
       </div>
 
-      {/* Navigation Links */}
-      <div className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-        <p className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
-          Menu Utama
-        </p>
+      {/* Role Badge */}
+      <div className="px-5 py-3 border-b border-slate-800">
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${cfg.badge}`}>
+          <RoleIcon className="w-3.5 h-3.5" />
+          <span className="text-[11px] font-bold uppercase tracking-wider">{cfg.label}</span>
+          <div className={`ml-auto w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pulse`} />
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-3">Menu Utama</p>
         {menus.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || (item.href !== `/${role}` && pathname.startsWith(item.href));
@@ -114,36 +134,39 @@ export default function Sidebar({ role, userName, userEmail }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3.5 py-3 rounded-xl font-medium text-sm transition-all duration-200 ${
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 relative ${
                 isActive
-                  ? `bg-gradient-to-r ${roleInfo.gradient} text-white shadow-md shadow-slate-200`
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'text-white'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-              <span>{item.label}</span>
+              {isActive && (
+                <span className={`absolute inset-0 rounded-xl bg-gradient-to-r ${cfg.activeBg} opacity-90`} />
+              )}
+              <Icon className={`w-4 h-4 relative z-10 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-white'}`} />
+              <span className="relative z-10 text-[13px]">{item.label}</span>
+              {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto relative z-10 text-white/60" />}
             </Link>
           );
         })}
-      </div>
+      </nav>
 
-      {/* User Info & Logout Button */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50/70 m-4 rounded-2xl">
-        <div className="flex items-center justify-between gap-2">
-          <div className="truncate">
-            <p className="text-sm font-bold text-slate-800 truncate">
-              {userName || (role === 'superadmin' ? 'Ziqi (Super)' : role === 'admin' ? 'Ilham (Admin)' : 'Pengajar')}
-            </p>
-            <p className="text-xs text-slate-500 truncate">
-              {userEmail || `${role}@tka-sd.com`}
-            </p>
+      {/* User Profile + Logout */}
+      <div className="p-3 border-t border-slate-800">
+        <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-800/70 border border-slate-700/50">
+          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${cfg.accent} flex items-center justify-center text-white font-black text-xs shrink-0`}>
+            {getInitials(userName)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-slate-200 truncate">{userName || cfg.label}</p>
+            <p className="text-[10px] text-slate-500 truncate">{userEmail || `${role}@tka.com`}</p>
           </div>
           <button
             onClick={handleLogout}
-            title="Keluar / Logout"
-            className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+            title="Keluar"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
