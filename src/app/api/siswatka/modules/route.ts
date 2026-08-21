@@ -20,7 +20,9 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false });
 
     if (mapel) {
-      query = query.eq('mata_pelajaran', mapel);
+      const cleanMapel = mapel.trim();
+      // Mendukung pencocokan fleksibel jika di database tersimpan "IPAS (Ilmu Pengetahuan Alam & Sosial)" atau "IPAS"
+      query = query.or(`mata_pelajaran.ilike.%${cleanMapel}%,kategori.ilike.%${cleanMapel}%`);
     }
 
     const { data: modules, error } = await query;
