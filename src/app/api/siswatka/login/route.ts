@@ -31,40 +31,40 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Verifikasi Password
-    if (student.password !== cleanPassword) {
-      return NextResponse.json(
-        { success: false, message: 'Password salah. Periksa kembali password Anda.' },
-        { status: 401 }
-      );
-    }
-
-    // 3. Cek apakah ini login pertama (tempat_lahir / tanggal_lahir masih kosong)
-    const isFirstLogin = !student.tempat_lahir || !student.tanggal_lahir;
+    // 2. Cek apakah ini login pertama (password / tempat_lahir / tanggal_lahir masih kosong di Supabase)
+    const isFirstLogin = !student.password || !student.tempat_lahir || !student.tanggal_lahir;
 
     if (isFirstLogin) {
       // --- LOGIN PERTAMA KALI ---
-      // Simpan data yang diinput ke database
+      // Simpan password dan data profil yang diinput siswa ke database agar permanen
+      const updateData: Record<string, any> = {
+        password: cleanPassword,
+        tempat_lahir: cleanTempat,
+        tanggal_lahir: tanggal_lahir,
+      };
+
+      // Jika nama_lengkap di database kosong, isi dengan nama_peserta yang diinput
+      if (!student.nama_lengkap) {
+        updateData.nama_lengkap = cleanNama;
+      }
+
       const { data: updatedStudent, error: updateError } = await supabase
         .from('students')
-        .update({
-          nama_lengkap: cleanNama,
-          tempat_lahir: cleanTempat,
-          tanggal_lahir: tanggal_lahir
-        })
+        .update(updateData)
         .eq('id', student.id)
         .select()
         .single();
 
       if (updateError) {
         return NextResponse.json(
-          { success: false, message: 'Gagal menyimpan data siswa.' },
+          { success: false, message: 'Gagal menyimpan data akun siswa.' },
           { status: 500 }
         );
       }
 
       return NextResponse.json({
         success: true,
+        message: 'Registrasi data awal berhasil.',
         student: {
           id: updatedStudent.id,
           nisn: updatedStudent.nisn,
@@ -75,17 +75,23 @@ export async function POST(request: Request) {
 
     } else {
       // --- LOGIN KEDUA KALINYA DAN SETERUSNYA ---
-      // Cocokkan data input dengan data di database
-      
-      const dbNama = student.nama_lengkap?.toUpperCase() || '';
+      // 1. Verifikasi Password
+      if (student.password !== cleanPassword) {
+        return NextResponse.json(
+          { success: false, message: 'Password salah. Periksa kembali password Anda.' },
+          { status: 401 }
+        );
+      }
+
+      // 2. Cocokkan data input dengan data di database
       const dbTempat = student.tempat_lahir?.toUpperCase() || '';
       const dbTanggal = student.tanggal_lahir; // Format YYYY-MM-DD
 
-      if (dbNama !== cleanNama || dbTempat !== cleanTempat || dbTanggal !== tanggal_lahir) {
+      if (dbTempat !== cleanTempat || dbTanggal !== tanggal_lahir) {
         return NextResponse.json(
           { 
             success: false, 
-            message: 'Nama, Tempat, atau Tanggal Lahir tidak cocok dengan data yang Anda simpan saat pertama kali login!' 
+            message: 'Tempat atau Tanggal Lahir tidak cocok dengan data yang Anda daftarkan saat pertama kali login!' 
           },
           { status: 401 }
         );
